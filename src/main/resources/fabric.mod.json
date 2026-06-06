@@ -1,0 +1,45 @@
+{
+	"schemaVersion": 1,
+	"id": "friendsradio",
+	"version": "${version}",
+	"name": "FriendsRadio",
+	"description": "This is an example description! Tell everyone what your mod is about!",
+	"authors": [
+		"Me!"
+	],
+	"contact": {
+		"homepage": "https://fabricmc.net/",
+		"sources": "https://github.com/FabricMC/fabric-example-mod"
+	},
+	"license": "CC0-1.0",
+	"icon": "assets/friendsradio/icon.png",
+	"environment": "*",
+	"entrypoints": {
+		"main": [
+			{
+				"value": "nl.thatzokay.friendsradio.FriendsRadio",
+				"adapter": "kotlin"
+			}
+		],
+		"client": [
+			{
+				"value": "nl.thatzokay.friendsradio.client.FriendsRadioClient",
+				"adapter": "kotlin"
+			}
+		]
+	},
+	"mixins": [
+		"friendsradio.mixins.json",
+		{
+			"config": "friendsradio.client.mixins.json",
+			"environment": "client"
+		}
+	],
+	"depends": {
+		"fabricloader": ">=0.19.3",
+		"minecraft": "~1.20.1",
+		"java": ">=17",
+		"fabric-api": "*",
+		"fabric-language-kotlin": "*"
+	}
+}

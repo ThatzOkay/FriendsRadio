@@ -1,0 +1,8 @@
+{
+  "variants": {
+    "facing=north": { "model": "friendsradio:block/radio" },
+    "facing=south": { "model": "friendsradio:block/radio", "y": 180 },
+    "facing=east":  { "model": "friendsradio:block/radio", "y": 90 },
+    "facing=west":  { "model": "friendsradio:block/radio", "y": 270 }
+  }
+}

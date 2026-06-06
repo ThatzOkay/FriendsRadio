@@ -1,0 +1,50 @@
+{
+  "format_version": "1.9.0",
+  "credit": "Made with Blockbench",
+  "parent": "minecraft:block/block",
+  "render_type": "cutout",
+  "texture_size": [32, 32],
+  "textures": {
+    "0": "friendsradio:block/radio",
+    "particle": "friendsradio:block/radio"
+  },
+  "elements": [
+    {
+      "name": "antenna",
+      "from": [7.87868, 5.53553, 9],
+      "to": [9.87868, 13.53553, 9.001],
+      "rotation": {"angle": 45, "axis": "z", "origin": [8.87868, 9.53553, 9.0005]},
+      "faces": {
+        "north": {"uv": [3, 8, 4, 12], "texture": "#0"},
+        "east": {"uv": [0.9995, 0, 1, 4], "texture": "#0"},
+        "south": {"uv": [4, 8, 5, 12], "texture": "#0"},
+        "west": {"uv": [0, 0, 0.0005, 4], "texture": "#0"},
+        "up": {"uv": [1.5, 3.5, 3, 3.5005], "texture": "#0"},
+        "down": {"uv": [0, 0.9995, 1, 1], "texture": "#0"}
+      }
+    },
+    {
+      "name": "radio",
+      "from": [2, 0, 5],
+      "to": [14, 8, 11],
+      "rotation": {"angle": 0, "axis": "y", "origin": [8, 4, 8]},
+      "faces": {
+        "north": {"uv": [6, 0, 0, 4], "texture": "#0"},
+        "east": {"uv": [3, 8, 0, 12], "texture": "#0"},
+        "south": {"uv": [0, 8, 6, 4], "texture": "#0"},
+        "west": {"uv": [9, 10, 6, 6], "texture": "#0"},
+        "up": {"uv": [12, 3, 6, 0], "texture": "#0"},
+        "down": {"uv": [12, 3, 6, 6], "texture": "#0"}
+      }
+    }
+  ],
+  "groups": [
+    {
+      "name": "radio",
+      "origin": [8.87868, 9.53553, 8.0005],
+      "scope": 0,
+      "color": 0,
+      "children": [0, 1]
+    }
+  ]
+}
