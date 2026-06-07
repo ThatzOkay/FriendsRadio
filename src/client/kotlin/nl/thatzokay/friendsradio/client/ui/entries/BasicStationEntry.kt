@@ -1,6 +1,6 @@
 package nl.thatzokay.friendsradio.client.ui.entries
 
-import nl.thatzokay.friendsradio.client.ui.records.Station
+import nl.thatzokay.friendsradio.records.Station
 import nl.thatzokay.friendsradio.client.ui.widgets.StationListWidget
 
 class BasicStationEntry(

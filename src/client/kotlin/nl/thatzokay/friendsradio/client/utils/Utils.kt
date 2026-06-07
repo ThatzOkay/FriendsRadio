@@ -6,11 +6,15 @@ import net.minecraft.client.font.TextRenderer
 import net.minecraft.client.gui.DrawContext
 import net.minecraft.client.texture.NativeImage
 import net.minecraft.client.texture.NativeImageBackedTexture
+import net.minecraft.entity.player.PlayerEntity
+import net.minecraft.item.ItemStack
+import net.minecraft.util.Hand
 import net.minecraft.util.Identifier
 import net.minecraft.util.Util
+import nl.thatzokay.friendsradio.ModBlocks
 import nl.thatzokay.friendsradio.client.config.favorites
 import nl.thatzokay.friendsradio.client.config.saveConfig
-import nl.thatzokay.friendsradio.client.ui.records.Station
+import nl.thatzokay.friendsradio.records.Station
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.apache.batik.transcoder.TranscoderInput
@@ -60,6 +64,25 @@ fun isFavorite(url: String?): Boolean {
     return favorites.stream().anyMatch { f: Station? -> f?.url == url }
 }
 
+fun findPlayingRadioStack(player: PlayerEntity): Pair<ItemStack, Hand>? {
+    for (hand in Hand.entries) {
+        val stack = player.getStackInHand(hand)
+        if (stack.isOf(ModBlocks.RADIO_ITEM) && stack.nbt?.getBoolean("IsPlaying") == true) {
+            return stack to hand
+        }
+    }
+    return null
+}
+
+fun findRadioStack(player: PlayerEntity): Pair<ItemStack, Hand>? {
+    for (hand in Hand.entries) {
+        val stack = player.getStackInHand(hand)
+        if (stack.isOf(ModBlocks.RADIO_ITEM)) {
+            return stack to hand
+        }
+    }
+    return null
+}
 
 fun drawMarqueeText(
     context: DrawContext,

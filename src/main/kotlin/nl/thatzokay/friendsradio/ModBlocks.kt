@@ -13,7 +13,7 @@ import nl.thatzokay.friendsradio.block.RadioBlock
 
 object ModBlocks {
 
-    val RADIO: RadioBlock? = Registry.register(
+    val RADIO_BLOCK: RadioBlock? = Registry.register(
         Registries.BLOCK,
         Identifier("friendsradio", "radio"),
         RadioBlock(
@@ -27,7 +27,7 @@ object ModBlocks {
     val RADIO_ITEM: BlockItem? = Registry.register(
         Registries.ITEM,
         Identifier("friendsradio", "radio"),
-        BlockItem(RADIO, Item.Settings())
+        BlockItem(RADIO_BLOCK, Item.Settings())
     )
 
     fun register() {

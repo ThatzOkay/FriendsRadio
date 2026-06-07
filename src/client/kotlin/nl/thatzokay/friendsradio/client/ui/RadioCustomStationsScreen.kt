@@ -7,7 +7,7 @@ import net.minecraft.client.gui.widget.ButtonWidget
 import net.minecraft.text.Text
 import nl.thatzokay.friendsradio.client.config.customStations
 import nl.thatzokay.friendsradio.client.ui.entries.CustomStationEntry
-import nl.thatzokay.friendsradio.client.ui.records.Station
+import nl.thatzokay.friendsradio.records.Station
 import nl.thatzokay.friendsradio.client.ui.widgets.StationListWidget
 
 class RadioCustomStationsScreen(val parentScreen: Screen) :
@@ -17,7 +17,11 @@ class RadioCustomStationsScreen(val parentScreen: Screen) :
         super.init()
         val cx = this.width / 2
 
-        val list = StationListWidget(MinecraftClient.getInstance(), width, height - 40, 85, 25,
+        val list = StationListWidget(MinecraftClient.getInstance(),
+            null,
+            null,
+            width,
+            height - 40, 85, 25,
             ::CustomStationEntry)
         if (customStations.isEmpty()) {
             list.addStation(Station(

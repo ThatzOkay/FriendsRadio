@@ -5,10 +5,9 @@ import net.minecraft.client.gui.screen.Screen
 import net.minecraft.client.gui.widget.ButtonWidget
 import net.minecraft.client.gui.widget.TextFieldWidget
 import net.minecraft.text.Text
-import nl.thatzokay.friendsradio.client.FriendsRadioClient
 import nl.thatzokay.friendsradio.client.config.customStations
 import nl.thatzokay.friendsradio.client.config.saveConfig
-import nl.thatzokay.friendsradio.client.ui.records.Station
+import nl.thatzokay.friendsradio.records.Station
 
 class RadioAddCustomStationScreen(val parentScreen: Screen) :
     Screen(Text.literal("Add Custom Station")) {

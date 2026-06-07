@@ -2,22 +2,32 @@ package nl.thatzokay.friendsradio.client.ui
 
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import io.netty.buffer.Unpooled
+import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking
+import net.fabricmc.fabric.api.networking.v1.PacketByteBufs
+import net.minecraft.block.entity.BlockEntity
 import net.minecraft.client.MinecraftClient
 import net.minecraft.client.gui.DrawContext
 import net.minecraft.client.gui.screen.Screen
 import net.minecraft.client.gui.widget.ButtonWidget
 import net.minecraft.client.gui.widget.TextFieldWidget
+import net.minecraft.item.ItemStack
+import net.minecraft.item.Items
+import net.minecraft.network.PacketByteBuf
 import net.minecraft.text.Text
+import nl.thatzokay.friendsradio.block.RadioBlockEntity
 import nl.thatzokay.friendsradio.client.FriendsRadioClient
 import nl.thatzokay.friendsradio.client.config.customStations
 import nl.thatzokay.friendsradio.client.config.favorites
 import nl.thatzokay.friendsradio.client.config.globalVolume
 import nl.thatzokay.friendsradio.client.config.saveConfig
 import nl.thatzokay.friendsradio.client.ui.entries.BasicStationEntry
-import nl.thatzokay.friendsradio.client.ui.records.Station
+import nl.thatzokay.friendsradio.records.Station
 import nl.thatzokay.friendsradio.client.ui.widgets.DropdownWidget
 import nl.thatzokay.friendsradio.client.ui.widgets.StationListWidget
 import nl.thatzokay.friendsradio.client.ui.widgets.VolumeSliderWidget
+import nl.thatzokay.friendsradio.network.RadioItemUpdatePayload
+import nl.thatzokay.friendsradio.network.RadioUpdatePayload
 import nl.thatzokay.friendsradio.records.FilterOption
 import java.net.URI
 import java.net.URLEncoder
@@ -26,10 +36,9 @@ import java.net.http.HttpRequest
 import java.net.http.HttpResponse
 import java.nio.charset.StandardCharsets
 import java.time.Duration
-import java.util.*
 import java.util.concurrent.CompletableFuture
 
-class RadioScreen(modClient: FriendsRadioClient) : Screen(Text.literal("Radio")) {
+class RadioScreen(val blockEntity: RadioBlockEntity?, val itemStack: ItemStack?) : Screen(Text.literal("Radio")) {
 
     private var listWidget: StationListWidget<BasicStationEntry>? = null
 
@@ -112,7 +121,7 @@ class RadioScreen(modClient: FriendsRadioClient) : Screen(Text.literal("Radio"))
 
         DropdownWidget.registerGroup("filters", countryDropdown!!, genreDropdown!!)
 
-        listWidget = StationListWidget(MinecraftClient.getInstance(), width, height - 40, 85, 25,
+        listWidget = StationListWidget(MinecraftClient.getInstance(), blockEntity, itemStack, width, height - 40, 85, 25,
             ::BasicStationEntry)
         addDrawableChild(listWidget)
 
@@ -125,28 +134,86 @@ class RadioScreen(modClient: FriendsRadioClient) : Screen(Text.literal("Radio"))
         val bStartX = centerX - totalW / 2
 
         addDrawableChild(
-            ButtonWidget.builder(Text.literal("⏹ Stop Radio"), {})
-                .dimensions(bStartX, bottomButtonsY, bW, 20).build()
-        )
+            ButtonWidget.builder(Text.literal("⏹ Stop Radio"), {
+                if (blockEntity != null) {
+                    blockEntity.station = null
+                    blockEntity.isPlaying = false
 
-        addDrawableChild(
-            ButtonWidget.builder(Text.literal("\uD83C\uDFB5 History"), {})
-                .dimensions(bStartX + bW + bGap, bottomButtonsY, bW, 20).build()
-        )
+                    val buf = PacketByteBuf(Unpooled.buffer())
 
-        addDrawableChild(
-            VolumeSliderWidget(bStartX + (bW + bGap) * 2, bottomButtonsY, bW, 20, Text.empty(), 0.0, { volume ->
-                globalVolume = volume.toFloat()
-                saveConfig()
+                    RadioUpdatePayload.encode(
+                        buf,
+                        blockEntity.pos,
+                        Station("", "", ""),
+                        false
+                    )
+
+                    ClientPlayNetworking.send(RadioUpdatePayload.ID, buf)
+                    blockEntity.markDirtyAndSync()
+                } else if (itemStack != null) {
+                    itemStack.nbt?.putString("StationName", "")
+                    itemStack.nbt?.putString("StationUrl", "")
+                    itemStack.nbt?.putString("StationFavicon", "")
+                    itemStack.nbt?.putBoolean("IsPlaying", false)
+
+                    val buf = PacketByteBuf(Unpooled.buffer())
+                    RadioItemUpdatePayload.encode(
+                        buf,
+                        Station("","",""),
+                        false
+                    )
+
+                    ClientPlayNetworking.send(RadioItemUpdatePayload.ID, buf)
+                    MinecraftClient.getInstance().player?.inventory?.markDirty()
+                }
             })
+                .dimensions(bStartX + (bW + bGap) * 1, bottomButtonsY, bW, 20).build()
         )
+
+//        addDrawableChild(
+//            ButtonWidget.builder(Text.literal("\uD83C\uDFB5 History"), {})
+//                .dimensions(bStartX + bW + bGap, bottomButtonsY, bW, 20).build()
+//        )
+
+//        addDrawableChild(
+//            VolumeSliderWidget(bStartX + (bW + bGap) * 1, bottomButtonsY, bW, 20, Text.empty(),
+//                (blockEntity?.volume?.toDouble()
+//                    ?: (itemStack?.nbt?.getFloat("Volume")
+//                        ?.toDouble()
+//                        ?: 1.0))
+//            ) { volume ->
+//
+//                if (blockEntity != null) {
+//                    val be = blockEntity ?: return@VolumeSliderWidget
+//                    be.volume = volume.toFloat()
+//
+//                    val buf = PacketByteBufs.create()
+//                    RadioUpdatePayload.encode(
+//                        buf,
+//                        be.pos,
+//                        be.station ?: Station("", "", ""),
+//                        volume.toFloat(),
+//                        be.isPlaying
+//                    )
+//                    ClientPlayNetworking.send(RadioUpdatePayload.ID, buf)
+//                } else {
+//                    itemStack?.orCreateNbt?.putFloat("Volume", volume.toFloat())
+//
+//                    val buf = PacketByteBufs.create()
+//                    RadioItemUpdatePayload.encode(
+//                        buf,
+//                        volume.toFloat())
+//                    ClientPlayNetworking.send(RadioItemUpdatePayload.ID, buf)
+//                }
+//            }
+//        )
 
         val bW2 = (totalW - bGap) / 3
 
-        addDrawableChild(
-            ButtonWidget.builder(Text.literal("⚙ Settings"), {})
-                .dimensions(bStartX, bottomButtonsY + 25, bW2, 20).build()
-        )
+//        addDrawableChild(
+//            ButtonWidget.builder(Text.literal("⚙ Settings"), {})
+//                .dimensions(bStartX, bottomButtonsY + 25, bW2, 20).build()
+//        )
 
         addDrawableChild(
             ButtonWidget.builder(Text.literal("Custom stations"), {

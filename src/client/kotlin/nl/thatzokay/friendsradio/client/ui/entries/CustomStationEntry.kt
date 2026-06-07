@@ -2,9 +2,8 @@ package nl.thatzokay.friendsradio.client.ui.entries
 
 import net.minecraft.client.gui.DrawContext
 import net.minecraft.util.Identifier
-import nl.thatzokay.friendsradio.client.config.customStations
 import nl.thatzokay.friendsradio.client.config.removeCustomStation
-import nl.thatzokay.friendsradio.client.ui.records.Station
+import nl.thatzokay.friendsradio.records.Station
 import nl.thatzokay.friendsradio.client.ui.widgets.StationListWidget
 import nl.thatzokay.friendsradio.client.utils.drawMarqueeText
 import nl.thatzokay.friendsradio.client.utils.fallbackIcon
