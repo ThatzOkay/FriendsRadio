@@ -1,5 +1,6 @@
 package nl.thatzokay.friendsradio.client
 
+import com.twelvemonkeys.imageio.plugins.ico.ICOImageReaderSpi
 import net.fabricmc.api.ClientModInitializer
 import net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientChunkEvents
@@ -20,7 +21,6 @@ import nl.thatzokay.friendsradio.block.RadioBlockEvents
 import nl.thatzokay.friendsradio.client.audio.RadioAudioManager
 import nl.thatzokay.friendsradio.client.config.loadConfig
 import nl.thatzokay.friendsradio.client.ui.RadioScreen
-import nl.thatzokay.friendsradio.client.utils.findPlayingRadioStack
 import nl.thatzokay.friendsradio.client.utils.findRadioStack
 import org.lwjgl.glfw.GLFW
 

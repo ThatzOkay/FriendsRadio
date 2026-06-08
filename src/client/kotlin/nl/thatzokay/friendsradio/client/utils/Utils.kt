@@ -118,6 +118,21 @@ fun drawMarqueeText(
 
 fun getIcon(iconUrl: String): Identifier? {
     if (iconUrl.isEmpty()) return null
+
+    if (iconUrl.startsWith("data:")) {
+        return try {
+            val raw = iconUrl.substringAfter("base64,")
+            val padded = raw + "=".repeat((4 - raw.length % 4) % 4)  // ensure valid padding
+            val bytes = Base64.getDecoder().decode(padded)
+            val byteBuffer = ByteBuffer.allocateDirect(bytes.size).put(bytes).rewind()
+            registerIconTexture(iconUrl, NativeImage.read(byteBuffer))
+        } catch (e: Exception) {
+            logger.warn("Failed to decode base64 icon: ${e.message}")
+            iconCache[iconUrl] = EMPTY_ICON
+            null
+        }
+    }
+
     if (!iconUrl.startsWith("http://") && !iconUrl.startsWith("https://")) return null
 
     val cachedIcon = iconCache[iconUrl]
@@ -128,8 +143,8 @@ fun getIcon(iconUrl: String): Identifier? {
             try {
                 val request = Request.Builder()
                     .url(iconUrl)
-                    .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36")
-                    .header("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7")
+                    .header("User-Agent", "Mozilla/5.0 ...")
+                    .header("Accept", "text/html,...")
                     .header("Accept-Language", "en-US,en;q=0.9")
                     .header("Referer", "https://google.com")
                     .build()
@@ -141,19 +156,14 @@ fun getIcon(iconUrl: String): Identifier? {
                         return@use
                     }
 
-                    val body = response.body
                     val isSvg = iconUrl.contains(".svg", ignoreCase = true)
-
                     val buffered: BufferedImage = if (isSvg) {
-                        renderSvg(body.byteStream(), 128) ?: run {
-                            iconCache[iconUrl] = EMPTY_ICON
-                            return@use
-                        }
+                        renderSvg(response.body.byteStream(), 128)
                     } else {
-                        ImageIO.read(body.byteStream()) ?: run {  // null if body isn't a readable image
-                            iconCache[iconUrl] = EMPTY_ICON
-                            return@use
-                        }
+                        ImageIO.read(response.body.byteStream())
+                    } ?: run {
+                        iconCache[iconUrl] = EMPTY_ICON
+                        return@use
                     }
 
                     if (buffered.width == 0 || buffered.height == 0) {
@@ -161,16 +171,13 @@ fun getIcon(iconUrl: String): Identifier? {
                         return@use
                     }
 
-                    val bytes = ByteArrayOutputStream().also { ImageIO.write(buffered, "png", it) }.toByteArray()
-                    val byteBuffer = ByteBuffer.allocateDirect(bytes.size).put(bytes).rewind()
-                    val image = NativeImage.read(byteBuffer)
-
+                    val image = bufferedToNativeImage(buffered)
                     MinecraftClient.getInstance().execute {
-                        val client = MinecraftClient.getInstance()
-                        val safeHash = UUID.nameUUIDFromBytes(iconUrl.toByteArray(Charsets.UTF_8)).toString().replace("-", "")
-                        val id = Identifier.of("friendsradio", "icon_$safeHash")
-                        client.textureManager.registerTexture(id, NativeImageBackedTexture(image))
-                        iconCache[iconUrl] = Optional.ofNullable(id)
+                        val texture = registerIconTexture(iconUrl, image)
+                        if (texture != null) {
+                            iconCache[iconUrl] = Optional.of(texture)
+                        } else
+                            iconCache[iconUrl] = EMPTY_ICON
                     }
                 }
             } catch (_: Exception) {
@@ -181,6 +188,23 @@ fun getIcon(iconUrl: String): Identifier? {
         }
     }
     return null
+}
+
+private fun iconIdentifier(iconUrl: String): Identifier? {
+    val hash = UUID.nameUUIDFromBytes(iconUrl.toByteArray(Charsets.UTF_8)).toString().replace("-", "")
+    return Identifier.of("friendsradio", "icon_$hash")
+}
+
+private fun registerIconTexture(iconUrl: String, image: NativeImage): Identifier? {
+    val id = iconIdentifier(iconUrl)
+    MinecraftClient.getInstance().textureManager.registerTexture(id, NativeImageBackedTexture(image))
+    return id
+}
+
+private fun bufferedToNativeImage(buffered: BufferedImage): NativeImage {
+    val bytes = ByteArrayOutputStream().also { ImageIO.write(buffered, "png", it) }.toByteArray()
+    val byteBuffer = ByteBuffer.allocateDirect(bytes.size).put(bytes).rewind()
+    return NativeImage.read(byteBuffer)
 }
 
 fun getArtworkUrl(songTitle: String): String? {

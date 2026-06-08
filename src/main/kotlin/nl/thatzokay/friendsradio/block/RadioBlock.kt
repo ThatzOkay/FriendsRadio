@@ -87,17 +87,21 @@ class RadioBlock(settings: Settings) : BlockWithEntity(settings) {
         newState: BlockState,
         moved: Boolean
     ) {
-        if (!state.isOf(newState.block)) {
+        if (world.isClient) RadioBlockEvents.onRemoved?.invoke(pos)
+        super.onStateReplaced(state, world, pos, newState, moved)
+    }
+
+    override fun onBreak(world: World?, pos: BlockPos?, state: BlockState?, player: PlayerEntity?) {
+        if (!world?.isClient!! && !player?.isCreative!!) {
             val be = world.getBlockEntity(pos) as? RadioBlockEntity
-            if (be != null && !world.isClient) {
+            if (be != null) {
                 val stack = ItemStack(this.asItem())
                 val nbt = stack.orCreateNbt
                 nbt.putFloat("Volume", be.volume)
                 dropStack(world, pos, stack)
             }
         }
-        if (world.isClient) RadioBlockEvents.onRemoved?.invoke(pos)
-        super.onStateReplaced(state, world, pos, newState, moved)
+        super.onBreak(world, pos, state, player)
     }
 
     @Deprecated("Deprecated in Java")

@@ -3,7 +3,6 @@ package nl.thatzokay.friendsradio.client.audio
 import net.minecraft.client.MinecraftClient
 import net.minecraft.client.world.ClientWorld
 import net.minecraft.entity.player.PlayerEntity
-import net.minecraft.item.ItemStack
 import net.minecraft.particle.ParticleTypes
 import net.minecraft.sound.SoundCategory
 import net.minecraft.util.Arm
@@ -11,24 +10,34 @@ import net.minecraft.util.Hand
 import net.minecraft.util.math.BlockPos
 import net.minecraft.util.math.Vec3d
 import net.minecraft.world.World
-import nl.thatzokay.friendsradio.ModBlocks
 import nl.thatzokay.friendsradio.block.RadioBlock
 import nl.thatzokay.friendsradio.block.RadioBlockEntity
 import nl.thatzokay.friendsradio.client.player.RadioPlayer
 import nl.thatzokay.friendsradio.client.utils.findPlayingRadioStack
+import nl.thatzokay.friendsradio.client.utils.getArtworkUrl
+import java.util.*
+import java.util.concurrent.CompletableFuture
+import java.util.function.IntPredicate
 
 object RadioAudioManager {
 
-    private data class ActiveStream(
+    data class ActiveStream(
         val url: String,
+        var lastSongName: String,
+        var currentArtworkUrl: String,
         val player: RadioPlayer,
         val thread: Thread
     )
 
-    private val activeStreams = mutableMapOf<BlockPos, ActiveStream>()
+    data class RadioInfo(
+        val pos: BlockPos,
+        var tickCounter: Int
+    )
+
+    val activeStreams = mutableMapOf<BlockPos, ActiveStream>()
     private var activeStreamPlayer: ActiveStream? = null
 
-    val knownRadios = mutableSetOf<BlockPos>()
+    val knownRadios = mutableSetOf<RadioInfo>()
 
     fun play(pos: BlockPos, url: String, volume: Float) {
         val existing = activeStreams[pos]
@@ -48,7 +57,7 @@ object RadioAudioManager {
             it.isDaemon = true  // don't block JVM shutdown
             it.start()
         }
-        activeStreams[pos] = ActiveStream(url, player, thread)
+        activeStreams[pos] = ActiveStream(url, "", "", player, thread)
     }
 
     fun stop(pos: BlockPos) {
@@ -69,7 +78,7 @@ object RadioAudioManager {
             it.isDaemon = true
             it.start()
         }
-        activeStreamPlayer = ActiveStream(url, player, thread)
+        activeStreamPlayer = ActiveStream(url, "", "", player, thread)
     }
 
     fun stopPlayer() {
@@ -84,11 +93,13 @@ object RadioAudioManager {
     }
 
     fun onRadioLoaded(pos: BlockPos) {
-        knownRadios.add(pos)
+        val radio = RadioInfo(pos, 0)
+        knownRadios.add(radio)
     }
 
     fun onRadioUnloaded(pos: BlockPos) {
-        knownRadios.remove(pos)
+        val radio = knownRadios.firstOrNull { it.pos == pos } ?: return
+        knownRadios.remove(radio)
         stop(pos)
     }
 
@@ -115,28 +126,35 @@ object RadioAudioManager {
         } else {
             stopPlayer()
 
-            knownRadios.toList().forEach { pos ->
-                val be = world.getBlockEntity(pos) as? RadioBlockEntity
+            knownRadios.toList().forEach { radio ->
+                val be = world.getBlockEntity(radio.pos) as? RadioBlockEntity
                 if (be == null) {
-                    stop(pos)
-                    knownRadios.remove(pos)
+                    stop(radio.pos)
+                    knownRadios.remove(radio)
                     return@forEach
                 }
 
                 if (!be.isPlaying || be.station?.url.isNullOrEmpty()) {
-                    stop(pos)
+                    stop(radio.pos)
                     return@forEach
                 }
 
-                spawnNoteParticles(world, pos)
+                radio.tickCounter++
+
+                if (radio.tickCounter >= 200) {
+                    radio.tickCounter = 0
+                    checkCurrentSong(radio.pos)
+                }
+
+                spawnNoteParticles(world, radio.pos)
 
                 val url = be.station!!.url
-                val dist = player.squaredDistanceTo(Vec3d.ofCenter(pos))
+                val dist = player.squaredDistanceTo(Vec3d.ofCenter(radio.pos))
                 val maxDist = be.range * be.range
                 val distanceVolume = if (dist >= maxDist) 0f else (1f - (dist / maxDist))
                 val finalVolume = distanceVolume.toFloat() * categoryVolume
 
-                play(pos, url, finalVolume)
+                play(radio.pos, url, finalVolume)
             }
         }
     }
@@ -187,5 +205,48 @@ object RadioAudioManager {
             base.x + right.x * 0.375, base.y, base.z + right.z * 0.375,
             world.random.nextDouble(), 0.0, 0.0
         )
+    }
+
+    private fun formatSongTitle(title: String?): String {
+        if (title.isNullOrEmpty()) return title!!
+        val up = title.chars().filter(IntPredicate { codePoint: Int -> Character.isUpperCase(codePoint) }).count()
+        val let = title.chars().filter(IntPredicate { codePoint: Int -> Character.isLetter(codePoint) }).count()
+        if (let > 0 && up.toDouble() / let > 0.6) {
+            val words =
+                title.lowercase(Locale.getDefault()).split(" ".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
+            val sb = StringBuilder()
+            for (w in words) {
+                if (!w.isEmpty()) sb.append(w.get(0).uppercaseChar()).append(w.substring(1)).append(" ")
+            }
+            return sb.toString().trim { it <= ' ' }
+        }
+        return title
+    }
+
+    private fun checkCurrentSong(pos: BlockPos) {
+        if (MinecraftClient.getInstance().world?.getBlockEntity(pos) !is RadioBlockEntity) return
+        val activeStream = activeStreams[pos] ?: return
+
+        CompletableFuture.runAsync {
+            val fetched = activeStream.player.fetchCurrentSong()
+            if (fetched != null) {
+                val raw: String = fetched.trim { it <= ' ' }.ifEmpty { "Live stream / AD" }
+                val newSong  = formatSongTitle(raw)
+
+                if (newSong != activeStream.lastSongName) {
+                    activeStream.lastSongName = newSong
+
+                    var currentArtworkUrl: String? = null
+                    CompletableFuture.runAsync {
+                        val artworkUrl = getArtworkUrl(newSong)
+                        if (newSong == activeStream.lastSongName && artworkUrl != null) {
+                            currentArtworkUrl = artworkUrl
+
+                            activeStream.currentArtworkUrl = currentArtworkUrl
+                        }
+                    }
+                }
+            }
+        }
     }
 }

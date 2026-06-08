@@ -4,7 +4,8 @@ import nl.thatzokay.friendsradio.client.utils.logger
 import java.io.BufferedInputStream
 import java.io.IOException
 import java.net.HttpURLConnection
-import java.net.URL
+import java.net.URI
+import java.nio.charset.StandardCharsets
 import javax.sound.sampled.*
 import kotlin.math.log10
 import kotlin.math.max
@@ -23,7 +24,7 @@ class RadioPlayer(val streamUrl: String) : Runnable {
         isPlaying = true
         var connection: HttpURLConnection? = null
         try {
-            val url = URL(streamUrl)
+            val url = URI.create(streamUrl).toURL()
             connection = url.openConnection() as HttpURLConnection
             connection.connectTimeout = 8000
             connection.readTimeout = 8000
@@ -116,5 +117,70 @@ class RadioPlayer(val streamUrl: String) : Runnable {
             db = max(minimum, min(db, maximum))
             volumeControl.value = db
         }
+    }
+
+    fun fetchCurrentSong(): String? {
+        var connection: HttpURLConnection? = null
+        try {
+            val url = URI.create(streamUrl).toURL()
+            connection = url.openConnection() as HttpURLConnection
+            connection.connectTimeout = 5000
+            connection.readTimeout = 5000
+            connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+            connection.setInstanceFollowRedirects(true)
+            connection.connect();
+
+            val metaInt = connection.getHeaderFieldInt("icy-metaint", 0)
+            if (metaInt == 0) {
+                return null
+            }
+
+            try {
+                val inputStream = connection.inputStream
+                var bytesToSkip = metaInt
+                while (bytesToSkip > 0) {
+                    val skipped: Long = inputStream.skip(bytesToSkip.toLong())
+                    if (skipped <= 0) {
+                        if (inputStream.read() == -1) break
+                        bytesToSkip--
+                    } else {
+                        bytesToSkip -= skipped.toInt()
+                    }
+                }
+
+                val metaLen: Int = inputStream.read() * 16
+
+                if (metaLen <= 0) {
+                    return null
+                }
+
+                val metaData = ByteArray(metaLen)
+                var bytesRead = 0
+
+                while (bytesRead < metaLen) {
+                    val read: Int = inputStream.read(metaData, bytesRead, metaLen - bytesRead)
+                    if (read == -1) break
+                    bytesRead += read
+                }
+
+                val metaString = String(metaData, StandardCharsets.UTF_8)
+
+                var start = metaString.indexOf("StreamTitle='")
+                if (start != -1) {
+                    start += 13
+                    val end = metaString.indexOf("';", start)
+                    if (end != -1) {
+                        return metaString.substring(start, end).trim { it <= ' ' }
+                    }
+                }
+            } catch (e: Exception) {
+                logger.error(e.message)
+            }
+        } catch (e: Exception) {
+            logger.error(e.message)
+        } finally {
+            connection?.disconnect()
+        }
+        return null
     }
 }

@@ -4,31 +4,28 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import io.netty.buffer.Unpooled
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking
-import net.fabricmc.fabric.api.networking.v1.PacketByteBufs
-import net.minecraft.block.entity.BlockEntity
 import net.minecraft.client.MinecraftClient
 import net.minecraft.client.gui.DrawContext
 import net.minecraft.client.gui.screen.Screen
 import net.minecraft.client.gui.widget.ButtonWidget
 import net.minecraft.client.gui.widget.TextFieldWidget
 import net.minecraft.item.ItemStack
-import net.minecraft.item.Items
 import net.minecraft.network.PacketByteBuf
 import net.minecraft.text.Text
 import nl.thatzokay.friendsradio.block.RadioBlockEntity
-import nl.thatzokay.friendsradio.client.FriendsRadioClient
+import nl.thatzokay.friendsradio.client.audio.RadioAudioManager
 import nl.thatzokay.friendsradio.client.config.customStations
 import nl.thatzokay.friendsradio.client.config.favorites
-import nl.thatzokay.friendsradio.client.config.globalVolume
-import nl.thatzokay.friendsradio.client.config.saveConfig
 import nl.thatzokay.friendsradio.client.ui.entries.BasicStationEntry
-import nl.thatzokay.friendsradio.records.Station
 import nl.thatzokay.friendsradio.client.ui.widgets.DropdownWidget
 import nl.thatzokay.friendsradio.client.ui.widgets.StationListWidget
-import nl.thatzokay.friendsradio.client.ui.widgets.VolumeSliderWidget
+import nl.thatzokay.friendsradio.client.utils.drawMarqueeText
+import nl.thatzokay.friendsradio.client.utils.fallbackIcon
+import nl.thatzokay.friendsradio.client.utils.getIcon
 import nl.thatzokay.friendsradio.network.RadioItemUpdatePayload
 import nl.thatzokay.friendsradio.network.RadioUpdatePayload
 import nl.thatzokay.friendsradio.records.FilterOption
+import nl.thatzokay.friendsradio.records.Station
 import java.net.URI
 import java.net.URLEncoder
 import java.net.http.HttpClient
@@ -237,6 +234,52 @@ class RadioScreen(val blockEntity: RadioBlockEntity?, val itemStack: ItemStack?)
         val title = if (showOnlyFavorites) Text.literal("Favorites") else Text.literal("Radio")
 
         context!!.drawCenteredTextWithShadow(client!!.textRenderer, title, width / 2 - client!!.textRenderer.getWidth(title) / 2, 10, 0xFFFFFF)
+
+        val radioInfo = RadioAudioManager.knownRadios.find { it.pos == blockEntity?.pos }
+
+        if (radioInfo != null) {
+            val activeStream = RadioAudioManager.activeStreams[radioInfo.pos]
+
+            if (activeStream?.lastSongName?.isNotEmpty() == true) {
+                val songText = "♪ " + activeStream.lastSongName
+                val barWidth = 310
+                val barX = width / 2 - barWidth / 2
+                val barY = height - 75
+                val barHeight = 20
+
+                context.fill(barX, barY, barX + barWidth, barY + barHeight, 0xAA000000.toInt())
+                context.fill(barX, barY, barX + barWidth, barY + 1, 0xFF555555.toInt())
+                context.fill(barX, barY + barHeight - 1, barX + barWidth, barY + barHeight, 0xFF555555.toInt())
+                context.fill(barX, barY, barX + 1, barY + barHeight, 0xFF555555.toInt())
+                context.fill(barX + barWidth - 1, barY, barX + barWidth, barY + barHeight, 0xFF555555.toInt())
+
+                val artworkUrl = activeStream.currentArtworkUrl
+                val iconSize = 64
+                if (artworkUrl.isNotEmpty()) {
+                    val artIcon = getIcon(artworkUrl)
+                    val displayIcon = artIcon ?: fallbackIcon
+
+                    context.fill(barX - iconSize - 4, barY, barX - 2, barY + iconSize, -0x56000000)
+                    context.fill(barX - iconSize - 4, barY, barX - 2, barY + 1, -0xaaaaab)
+                    context.fill(barX - iconSize - 4, barY + iconSize - 1, barX - 2, barY + iconSize, -0xaaaaab)
+                    context.fill(barX - iconSize - 4, barY, barX - iconSize - 3, barY + iconSize, -0xaaaaab)
+                    context.fill(barX - 3, barY, barX - 2, barY + iconSize, -0xaaaaab)
+                    context.drawTexture(
+                        displayIcon,
+                        barX - iconSize - 3,
+                        barY,
+                        0F,
+                        0F,
+                        iconSize,
+                        iconSize,
+                        iconSize,
+                        iconSize
+                    )
+                }
+                val textY = barY + (barHeight - client!!.textRenderer.fontHeight) / 2;
+                drawMarqueeText(context, client!!.textRenderer, songText, barX + 5, textY, barWidth - 10, 0x55FF55, true)
+            }
+        }
 
         if (!showOnlyFavorites) {
             if (countryDropdown != null) countryDropdown!!.renderPopup(context, mouseX, mouseY)

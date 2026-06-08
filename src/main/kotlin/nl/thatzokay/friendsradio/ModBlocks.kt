@@ -27,7 +27,7 @@ object ModBlocks {
     val RADIO_ITEM: BlockItem? = Registry.register(
         Registries.ITEM,
         Identifier("friendsradio", "radio"),
-        BlockItem(RADIO_BLOCK, Item.Settings())
+        BlockItem(RADIO_BLOCK, Item.Settings().maxCount(1))
     )
 
     fun register() {
