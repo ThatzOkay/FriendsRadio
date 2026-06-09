@@ -1,6 +1,5 @@
 package nl.thatzokay.friendsradio.client
 
-import com.twelvemonkeys.imageio.plugins.ico.ICOImageReaderSpi
 import net.fabricmc.api.ClientModInitializer
 import net.fabricmc.fabric.api.blockrenderlayer.v1.BlockRenderLayerMap
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientChunkEvents
@@ -21,7 +20,10 @@ import nl.thatzokay.friendsradio.block.RadioBlockEvents
 import nl.thatzokay.friendsradio.client.audio.RadioAudioManager
 import nl.thatzokay.friendsradio.client.config.loadConfig
 import nl.thatzokay.friendsradio.client.ui.RadioScreen
+import nl.thatzokay.friendsradio.client.utils.downloadingIcons
 import nl.thatzokay.friendsradio.client.utils.findRadioStack
+import nl.thatzokay.friendsradio.client.utils.iconCache
+import nl.thatzokay.friendsradio.client.utils.logger
 import org.lwjgl.glfw.GLFW
 
 
@@ -30,7 +32,15 @@ object FriendsRadioClient : ClientModInitializer {
 	var openScreenKey: KeyBinding? = null
 
 	override fun onInitializeClient() {
+		logger.info("[FriendsRadio] Client initializing")
+
+		iconCache.clear()
+		downloadingIcons.clear()
+
 		loadConfig()
+
+		RadioBlockEvents.onPlaced  = { pos -> RadioAudioManager.onRadioLoaded(pos) }
+		RadioBlockEvents.onRemoved = { pos -> RadioAudioManager.onRadioUnloaded(pos) }
 
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.RADIO_BLOCK, RenderLayer.getCutout())
 		UseBlockCallback.EVENT.register { playerEntity, world, hand, hitResult ->
@@ -51,9 +61,6 @@ object FriendsRadioClient : ClientModInitializer {
 			GLFW.GLFW_KEY_R,
 			"category.friendsradio.keys"
 		))
-
-		RadioBlockEvents.onPlaced  = { pos -> RadioAudioManager.onRadioLoaded(pos) }
-		RadioBlockEvents.onRemoved = { pos -> RadioAudioManager.onRadioUnloaded(pos) }
 
 		ClientTickEvents.END_CLIENT_TICK.register { client ->
             onClientTick(client)

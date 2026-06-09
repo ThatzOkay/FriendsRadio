@@ -8,6 +8,7 @@ import net.minecraft.network.packet.Packet
 import net.minecraft.network.packet.s2c.play.BlockEntityUpdateS2CPacket
 import net.minecraft.server.world.ServerWorld
 import net.minecraft.util.math.BlockPos
+import nl.thatzokay.friendsradio.FriendsRadio
 import nl.thatzokay.friendsradio.ModBlockEntities
 import nl.thatzokay.friendsradio.records.Station
 
@@ -19,15 +20,19 @@ class RadioBlockEntity(pos: BlockPos, state: BlockState) :
     var isPlaying: Boolean = false
     var range: Float = 32.0f
 
-    override fun readNbt(nbt: NbtCompound) {  // ← remove the ?, Yarn's signature is non-null
+    override fun readNbt(nbt: NbtCompound) {
         super.readNbt(nbt)
         val name    = nbt.getString("StationName")
         val url     = nbt.getString("StationUrl")
         val favicon = nbt.getString("StationFavIcon")
-        // Only restore station if we actually saved one
+
         station     = if (url.isNotEmpty()) Station(name, url, favicon) else null
         isPlaying   = nbt.getBoolean("IsPlaying")
         range       = nbt.getFloat("Range").let { if (it == 0.0f) 32.0f else it }
+
+        if (world?.isClient == true) {
+            RadioBlockEvents.onPlaced?.invoke(pos)
+        }
     }
 
     override fun writeNbt(nbt: NbtCompound) {  // ← remove the ?

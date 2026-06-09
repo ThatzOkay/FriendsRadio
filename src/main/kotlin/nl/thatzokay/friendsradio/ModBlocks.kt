@@ -31,7 +31,7 @@ object ModBlocks {
     )
 
     fun register() {
-        FriendsRadio.LOGGER?.info("Registering blocks")
+        FriendsRadio.LOGGER.info("Registering blocks")
 
         ItemGroupEvents.modifyEntriesEvent(ItemGroups.REDSTONE).register { entries ->
             entries.add(RADIO_ITEM)

@@ -22,6 +22,7 @@ import net.minecraft.util.shape.VoxelShape
 import net.minecraft.util.shape.VoxelShapes
 import net.minecraft.world.BlockView
 import net.minecraft.world.World
+import nl.thatzokay.friendsradio.FriendsRadio
 
 
 class RadioBlock(settings: Settings) : BlockWithEntity(settings) {
@@ -50,7 +51,10 @@ class RadioBlock(settings: Settings) : BlockWithEntity(settings) {
         val be = world?.getBlockEntity(pos) as? RadioBlockEntity ?: return
         be.volume = stackNbt.getFloat("Volume").coerceIn(0.0f, 1.0f)
         be.markDirtyAndSync()
-        if (world.isClient) pos?.let { RadioBlockEvents.onPlaced?.invoke(it) }
+
+        if (world.isClient) {
+            RadioBlockEvents.onPlaced?.let { it(pos!!) }
+        }
     }
 
     override fun createBlockEntity(pos: BlockPos, state: BlockState) =
@@ -80,6 +84,7 @@ class RadioBlock(settings: Settings) : BlockWithEntity(settings) {
     }
 
     @Deprecated("Deprecated in Java")
+    @Suppress("DEPRECATION")
     override fun onStateReplaced(
         state: BlockState,
         world: World,

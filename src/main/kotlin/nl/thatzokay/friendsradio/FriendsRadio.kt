@@ -12,9 +12,10 @@ import org.slf4j.LoggerFactory
 
 object FriendsRadio : ModInitializer {
 	const val MOD_ID = "friendsradio"
-	val LOGGER: Logger? = LoggerFactory.getLogger(MOD_ID)
+	val LOGGER: Logger = LoggerFactory.getLogger(MOD_ID)
 
 	override fun onInitialize() {
+		LOGGER.info("Initializing FriendRadio")
 		ModBlocks.register()
 		ModBlockEntities.register()
 

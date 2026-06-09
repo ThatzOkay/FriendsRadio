@@ -15,6 +15,7 @@ import nl.thatzokay.friendsradio.block.RadioBlockEntity
 import nl.thatzokay.friendsradio.client.player.RadioPlayer
 import nl.thatzokay.friendsradio.client.utils.findPlayingRadioStack
 import nl.thatzokay.friendsradio.client.utils.getArtworkUrl
+import nl.thatzokay.friendsradio.client.utils.logger
 import java.util.*
 import java.util.concurrent.CompletableFuture
 import java.util.function.IntPredicate
@@ -94,7 +95,10 @@ object RadioAudioManager {
 
     fun onRadioLoaded(pos: BlockPos) {
         val radio = RadioInfo(pos, 0)
-        knownRadios.add(radio)
+        val existing = knownRadios.find { it.pos == pos }
+        if (existing == null) {
+            knownRadios.add(radio)
+        }
     }
 
     fun onRadioUnloaded(pos: BlockPos) {

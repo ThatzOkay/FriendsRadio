@@ -9,7 +9,7 @@ import nl.thatzokay.friendsradio.client.ui.entries.StationEntry
 import nl.thatzokay.friendsradio.records.Station
 
 class StationListWidget<T: StationEntry<T>>(
-    val client: MinecraftClient,
+    @Suppress("PROPERTY_HIDES_JAVA_FIELD") val client: MinecraftClient,
     val blockEntity: RadioBlockEntity?,
     val itemStack: ItemStack?,
     width: Int,

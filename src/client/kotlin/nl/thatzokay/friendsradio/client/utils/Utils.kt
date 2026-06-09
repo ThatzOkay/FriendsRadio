@@ -15,8 +15,6 @@ import nl.thatzokay.friendsradio.ModBlocks
 import nl.thatzokay.friendsradio.client.config.favorites
 import nl.thatzokay.friendsradio.client.config.saveConfig
 import nl.thatzokay.friendsradio.records.Station
-import okhttp3.OkHttpClient
-import okhttp3.Request
 import org.apache.batik.transcoder.TranscoderInput
 import org.apache.batik.transcoder.TranscoderOutput
 import org.apache.batik.transcoder.image.ImageTranscoder
@@ -44,15 +42,8 @@ val fallbackIcon = Identifier("friendsradio", "icon.png")
 
 private val EMPTY_ICON = Optional.empty<Identifier>()
 
-val logger = LoggerFactory.getLogger("friendsradio")
+val logger: org.slf4j.Logger = LoggerFactory.getLogger("friendsradio")
 
-private val httpClient = OkHttpClient.Builder()
-    .connectTimeout(5, TimeUnit.SECONDS)
-    .readTimeout(5, TimeUnit.SECONDS)
-    .followRedirects(true)
-    .followSslRedirects(true)
-    .retryOnConnectionFailure(true)
-    .build()
 
 fun toggleFavorite(station: Station) {
     if (isFavorite(station.url)) favorites.removeIf { f: Station? -> f?.url == station.url }
@@ -117,70 +108,80 @@ fun drawMarqueeText(
 }
 
 fun getIcon(iconUrl: String): Identifier? {
-    if (iconUrl.isEmpty()) return null
-
+    if (iconUrl.isEmpty()) {
+        logger.error("[FreindsRadio] iconUrl empty")
+        return null
+    }
     if (iconUrl.startsWith("data:")) {
         return try {
             val raw = iconUrl.substringAfter("base64,")
-            val padded = raw + "=".repeat((4 - raw.length % 4) % 4)  // ensure valid padding
+            val padded = raw + "=".repeat((4 - raw.length % 4) % 4)
             val bytes = Base64.getDecoder().decode(padded)
-            val byteBuffer = ByteBuffer.allocateDirect(bytes.size).put(bytes).rewind()
-            registerIconTexture(iconUrl, NativeImage.read(byteBuffer))
+            registerIconTexture(iconUrl, NativeImage.read(bytes.inputStream()))
         } catch (e: Exception) {
             logger.warn("Failed to decode base64 icon: ${e.message}")
             iconCache[iconUrl] = EMPTY_ICON
             null
         }
     }
-
-    if (!iconUrl.startsWith("http://") && !iconUrl.startsWith("https://")) return null
-
+    if (!iconUrl.startsWith("http://") && !iconUrl.startsWith("https://")) {
+        logger.error("[FreindsRadio] iconUrl invalid")
+        return null
+    }
     val cachedIcon = iconCache[iconUrl]
-    if (cachedIcon != null) return cachedIcon.orElse(null)
-
+    if (cachedIcon != null) {
+        //logger.info("[FreindsRadio] returning cached icon: $iconUrl")
+        return cachedIcon.orElse(null)
+    }
     if (downloadingIcons.add(iconUrl)) {
         CompletableFuture.runAsync {
+            logger.info("Attempting download for $iconUrl")
             try {
-                val request = Request.Builder()
-                    .url(iconUrl)
-                    .header("User-Agent", "Mozilla/5.0 ...")
-                    .header("Accept", "text/html,...")
-                    .header("Accept-Language", "en-US,en;q=0.9")
-                    .header("Referer", "https://google.com")
-                    .build()
+                val connection = java.net.URI(iconUrl).toURL().openConnection() as java.net.HttpURLConnection
+                connection.connectTimeout = 5000
+                connection.readTimeout = 5000
+                connection.setRequestProperty("User-Agent", "Mozilla/5.0")
+                connection.setRequestProperty("Accept", "image/*")
+                connection.instanceFollowRedirects = true
+                connection.connect()
 
-                httpClient.newCall(request).execute().use { response ->
-                    if (!response.isSuccessful) {
-                        logger.error("Failed to download icon from $iconUrl: ${response.code}, ${response.message}")
-                        iconCache[iconUrl] = EMPTY_ICON
-                        return@use
-                    }
+                if (connection.responseCode !in 200..299) {
+                    logger.error("Failed to download icon from $iconUrl: ${connection.responseCode}")
+                    iconCache[iconUrl] = EMPTY_ICON
+                    connection.disconnect()
+                    return@runAsync
+                }
 
-                    val isSvg = iconUrl.contains(".svg", ignoreCase = true)
-                    val buffered: BufferedImage = if (isSvg) {
-                        renderSvg(response.body.byteStream(), 128)
+                val contentType = connection.contentType ?: ""
+                val isSvg = contentType.contains("svg") || iconUrl.substringAfterLast("?").substringAfterLast(".").lowercase() == "svg" || iconUrl.endsWith(".svg")
+                val isIco = contentType.contains("ico") || iconUrl.substringAfterLast("?").lowercase() == "ico" || iconUrl.endsWith(".ico")
+
+                val stream = connection.inputStream
+                val buffered: BufferedImage? = when {
+                    isSvg -> renderSvg(stream, 128)
+                    isIco -> readIco(stream)
+                    else -> ImageIO.read(stream)
+                }
+                connection.disconnect()
+
+                if (buffered == null || buffered.width == 0 || buffered.height == 0) {
+                    logger.error("Failed to decode icon from $iconUrl")
+                    iconCache[iconUrl] = EMPTY_ICON
+                    return@runAsync
+                }
+
+                val image = bufferedToNativeImage(buffered)
+                MinecraftClient.getInstance().execute {
+                    val texture = registerIconTexture(iconUrl, image)
+                    if (texture != null) {
+                        logger.info("Successfully downloaded icon adding to cache {}", texture)
+                        iconCache[iconUrl] = Optional.of(texture)
                     } else {
-                        ImageIO.read(response.body.byteStream())
-                    } ?: run {
                         iconCache[iconUrl] = EMPTY_ICON
-                        return@use
-                    }
-
-                    if (buffered.width == 0 || buffered.height == 0) {
-                        iconCache[iconUrl] = EMPTY_ICON
-                        return@use
-                    }
-
-                    val image = bufferedToNativeImage(buffered)
-                    MinecraftClient.getInstance().execute {
-                        val texture = registerIconTexture(iconUrl, image)
-                        if (texture != null) {
-                            iconCache[iconUrl] = Optional.of(texture)
-                        } else
-                            iconCache[iconUrl] = EMPTY_ICON
                     }
                 }
-            } catch (_: Exception) {
+            } catch (e: Throwable) {
+                logger.error("Failed to download icon from $iconUrl", e)
                 iconCache[iconUrl] = EMPTY_ICON
             } finally {
                 downloadingIcons.remove(iconUrl)
@@ -190,65 +191,86 @@ fun getIcon(iconUrl: String): Identifier? {
     return null
 }
 
+private fun readIco(stream: java.io.InputStream): BufferedImage? {
+    val bytes = stream.readBytes()
+    // ICO header: 6 bytes, then directory entries of 16 bytes each
+    // Each entry has offset+size of the actual image data
+    // Images inside are either PNG (magic: 89 50 4E 47) or BMP
+    val count = ((bytes[4].toInt() and 0xFF) or ((bytes[5].toInt() and 0xFF) shl 8))
+    var bestSize = 0
+    var bestOffset = 0
+    var bestLength = 0
+    for (i in 0 until count) {
+        val base = 6 + i * 16
+        val w = bytes[base].toInt() and 0xFF
+        val size = if (w == 0) 256 else w
+        val length = (bytes[base+8].toInt() and 0xFF) or ((bytes[base+9].toInt() and 0xFF) shl 8) or
+                ((bytes[base+10].toInt() and 0xFF) shl 16) or ((bytes[base+11].toInt() and 0xFF) shl 24)
+        val offset = (bytes[base+12].toInt() and 0xFF) or ((bytes[base+13].toInt() and 0xFF) shl 8) or
+                ((bytes[base+14].toInt() and 0xFF) shl 16) or ((bytes[base+15].toInt() and 0xFF) shl 24)
+        if (size > bestSize) { bestSize = size; bestOffset = offset; bestLength = length }
+    }
+    if (bestLength == 0) return null
+    val imageBytes = bytes.copyOfRange(bestOffset, bestOffset + bestLength)
+    return ImageIO.read(imageBytes.inputStream()) // works if frame is PNG; BMP frames need extra handling
+}
+
 private fun iconIdentifier(iconUrl: String): Identifier? {
     val hash = UUID.nameUUIDFromBytes(iconUrl.toByteArray(Charsets.UTF_8)).toString().replace("-", "")
     return Identifier.of("friendsradio", "icon_$hash")
 }
 
 private fun registerIconTexture(iconUrl: String, image: NativeImage): Identifier? {
-    val id = iconIdentifier(iconUrl)
-    MinecraftClient.getInstance().textureManager.registerTexture(id, NativeImageBackedTexture(image))
-    return id
+    val id = iconIdentifier(iconUrl) ?: return null
+    return try {
+        MinecraftClient.getInstance().textureManager.registerTexture(id, NativeImageBackedTexture(image))
+        logger.info("Registered texture: $id")
+        id
+    } catch (e: Exception) {
+        logger.error("registerIconTexture failed for $iconUrl", e)
+        null
+    }
 }
 
 private fun bufferedToNativeImage(buffered: BufferedImage): NativeImage {
     val bytes = ByteArrayOutputStream().also { ImageIO.write(buffered, "png", it) }.toByteArray()
-    val byteBuffer = ByteBuffer.allocateDirect(bytes.size).put(bytes).rewind()
-    return NativeImage.read(byteBuffer)
+    return NativeImage.read(bytes.inputStream())
 }
 
 fun getArtworkUrl(songTitle: String): String? {
     if (songTitle.isBlank()) return null
     try {
-        var query = ""
-        val dashIdx = songTitle.indexOf(" - ")
-        if (dashIdx > 0) {
-            val artist = songTitle.substring(0, dashIdx)
-            val title = songTitle.substring(dashIdx + 3).trim()
-            query = "$artist $title"
-        } else {
-            query = songTitle.trim()
-        }
+        val query = if (songTitle.indexOf(" - ") > 0) {
+            val dashIdx = songTitle.indexOf(" - ")
+            "${songTitle.substring(0, dashIdx)} ${songTitle.substring(dashIdx + 3).trim()}"
+        } else songTitle.trim()
 
         val encoded = URLEncoder.encode(query, "UTF-8")
         val apiUrl = "https://itunes.apple.com/search?term=$encoded&media=music&limit=1"
 
-        val request = Request.Builder()
-            .url(apiUrl)
-            .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36")
-            .build()
+        val connection = java.net.URI(apiUrl).toURL().openConnection() as java.net.HttpURLConnection
+        connection.connectTimeout = 5000
+        connection.readTimeout = 5000
+        connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/148.0.0.0 Safari/537.36")
+        connection.connect()
 
-        httpClient.newCall(request).execute().use { response ->
-            if (!response.isSuccessful) {
-                logger.error("Failed to get artwork for song: $songTitle, ${response.code}, ${response.message}")
-                return null
-            }
-
-            val body = response.body
-            val json = body.string()
-            val jsonObj = JsonParser.parseString(json).asJsonObject
-            val results = jsonObj.getAsJsonArray("results")
-            if (results.size() == 0) return null
-
-            val track = results[0].asJsonObject
-
-            if (track.has("artworkUrl100")) {
-                val artworkUrl = track.get("artworkUrl100").asString
-                    .replace("100x100bb", "600x600bb")
-                return artworkUrl
-            }
+        if (connection.responseCode !in 200..299) {
+            logger.error("Failed to get artwork for song: $songTitle, ${connection.responseCode}")
+            connection.disconnect()
+            return null
         }
 
+        val json = connection.inputStream.use { it.readBytes().toString(Charsets.UTF_8) }
+        connection.disconnect()
+
+        val jsonObj = JsonParser.parseString(json).asJsonObject
+        val results = jsonObj.getAsJsonArray("results")
+        if (results.size() == 0) return null
+
+        val track = results[0].asJsonObject
+        if (track.has("artworkUrl100")) {
+            return track.get("artworkUrl100").asString.replace("100x100bb", "600x600bb")
+        }
     } catch (e: Exception) {
         logger.error("Failed to get artwork for song: $songTitle", e)
     }

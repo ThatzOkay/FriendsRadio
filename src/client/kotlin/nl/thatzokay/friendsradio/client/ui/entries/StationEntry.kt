@@ -14,6 +14,7 @@ import nl.thatzokay.friendsradio.client.utils.fallbackIcon
 import nl.thatzokay.friendsradio.client.utils.getIcon
 import nl.thatzokay.friendsradio.client.ui.widgets.StationListWidget
 import nl.thatzokay.friendsradio.client.utils.isFavorite
+import nl.thatzokay.friendsradio.client.utils.logger
 import nl.thatzokay.friendsradio.client.utils.toggleFavorite
 import nl.thatzokay.friendsradio.network.RadioItemUpdatePayload
 import nl.thatzokay.friendsradio.network.RadioUpdatePayload
@@ -56,6 +57,7 @@ open class StationEntry<T : StationEntry<T>>(
 
             if (!station.favicon.isEmpty()) {
                 val icon = getIcon(station.favicon)
+                //logger.info("Icon: {}", icon)
                 context.drawTexture(
                     Objects.requireNonNullElse<Identifier>(icon, fallbackIcon),
                     left + 20, top + 2, 0.0f, 0.0f, 20, 20, 20,
@@ -73,6 +75,7 @@ open class StationEntry<T : StationEntry<T>>(
             hovered)
     }
 
+    @Suppress("UNCHECKED_CAST")
     override fun mouseClicked(mouseX: Double, mouseY: Double, button: Int): Boolean {
         if(station.url.isEmpty()) {
             return false

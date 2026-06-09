@@ -38,7 +38,7 @@ class RadioPlayer(val streamUrl: String) : Runnable {
                     logger.warn("Server returned HTTP error code: $responseCode")
                 }
             } catch (e: IOException) {
-                logger.error(e.message)
+                logger.error("Failed to read response code from $streamUrl", e)
             }
 
             try {
@@ -74,6 +74,7 @@ class RadioPlayer(val streamUrl: String) : Runnable {
                 dataLine?.open(decodedFormat)
                 dataLine?.start()
 
+                logger.info("[FriendsRadio] Stream started: $streamUrl")
                 updateVolumeControl()
 
                 val buffer = ByteArray(4096)
@@ -88,11 +89,11 @@ class RadioPlayer(val streamUrl: String) : Runnable {
                 dataLine?.stop()
                 dataLine?.close()
                 decodedInputStream.close()
-            } catch (e: Exception) {
-                logger.error(e.message)
+            } catch (e: Throwable) {
+                logger.error("Audio playback failed for $streamUrl", e)
             }
-        } catch (e: Exception) {
-            logger.error(e.message)
+        } catch (e: Throwable) {
+            logger.error("Failed to connect to stream $streamUrl", e)
         } finally {
             isPlaying = false
             connection?.disconnect()
@@ -174,10 +175,10 @@ class RadioPlayer(val streamUrl: String) : Runnable {
                     }
                 }
             } catch (e: Exception) {
-                logger.error(e.message)
+                logger.error("Failed to read ICY metadata from $streamUrl", e)
             }
         } catch (e: Exception) {
-            logger.error(e.message)
+            logger.error("Failed to fetch current song from $streamUrl", e)
         } finally {
             connection?.disconnect()
         }
