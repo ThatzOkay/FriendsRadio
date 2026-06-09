@@ -12,6 +12,7 @@ import net.minecraft.client.option.KeyBinding
 import net.minecraft.client.render.RenderLayer
 import net.minecraft.client.util.InputUtil
 import net.minecraft.util.ActionResult
+import net.minecraft.util.hit.BlockHitResult
 import net.minecraft.util.hit.HitResult
 import nl.thatzokay.friendsradio.ModBlocks
 import nl.thatzokay.friendsradio.block.RadioBlock
@@ -45,10 +46,12 @@ object FriendsRadioClient : ClientModInitializer {
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.RADIO_BLOCK, RenderLayer.getCutout())
 		UseBlockCallback.EVENT.register { playerEntity, world, hand, hitResult ->
 			if (world.isClient && hitResult.type == HitResult.Type.BLOCK) {
-				val block = world.getBlockState(hitResult.blockPos).block
-				val blockEntity = world.getBlockEntity(hitResult.blockPos) as RadioBlockEntity?
-				if (block is RadioBlock) {
-					MinecraftClient.getInstance().setScreen(RadioScreen(blockEntity, null))
+				val blockHitResult = hitResult as BlockHitResult
+				val state = world.getBlockState(blockHitResult.blockPos)
+				if (state.block is RadioBlock) {
+                    val blockEntity = world.getBlockEntity(blockHitResult.blockPos) as? RadioBlockEntity
+                        ?: return@register ActionResult.PASS
+                    MinecraftClient.getInstance().setScreen(RadioScreen(blockEntity, null))
 					return@register ActionResult.SUCCESS
 				}
 			}
