@@ -125,7 +125,7 @@ fun getIcon(iconUrl: String): Identifier? {
         }
     }
     if (!iconUrl.startsWith("http://") && !iconUrl.startsWith("https://")) {
-        logger.error("[FreindsRadio] iconUrl invalid")
+        logger.error("[FreindsRadio] iconUrl invalid $iconUrl")
         return null
     }
     val cachedIcon = iconCache[iconUrl]
@@ -174,7 +174,6 @@ fun getIcon(iconUrl: String): Identifier? {
                 MinecraftClient.getInstance().execute {
                     val texture = registerIconTexture(iconUrl, image)
                     if (texture != null) {
-                        logger.info("Successfully downloaded icon adding to cache {}", texture)
                         iconCache[iconUrl] = Optional.of(texture)
                     } else {
                         iconCache[iconUrl] = EMPTY_ICON
@@ -204,10 +203,15 @@ private fun readIco(stream: java.io.InputStream): BufferedImage? {
         val base = 6 + i * 16
         val w = bytes[base].toInt() and 0xFF
         val size = if (w == 0) 256 else w
-        val length = (bytes[base+8].toInt() and 0xFF) or ((bytes[base+9].toInt() and 0xFF) shl 8) or
-                ((bytes[base+10].toInt() and 0xFF) shl 16) or ((bytes[base+11].toInt() and 0xFF) shl 24)
-        val offset = (bytes[base+12].toInt() and 0xFF) or ((bytes[base+13].toInt() and 0xFF) shl 8) or
-                ((bytes[base+14].toInt() and 0xFF) shl 16) or ((bytes[base+15].toInt() and 0xFF) shl 24)
+        val length = ((bytes[base+8].toLong() and 0xFF) or
+                ((bytes[base+9].toLong() and 0xFF) shl 8) or
+                ((bytes[base+10].toLong() and 0xFF) shl 16) or
+                ((bytes[base+11].toLong() and 0xFF) shl 24)).toInt()
+
+        val offset = ((bytes[base+12].toLong() and 0xFF) or
+                ((bytes[base+13].toLong() and 0xFF) shl 8) or
+                ((bytes[base+14].toLong() and 0xFF) shl 16) or
+                ((bytes[base+15].toLong() and 0xFF) shl 24)).toInt()
         if (size > bestSize) { bestSize = size; bestOffset = offset; bestLength = length }
     }
     if (bestLength == 0) return null
@@ -224,7 +228,6 @@ private fun registerIconTexture(iconUrl: String, image: NativeImage): Identifier
     val id = iconIdentifier(iconUrl) ?: return null
     return try {
         MinecraftClient.getInstance().textureManager.registerTexture(id, NativeImageBackedTexture(image))
-        logger.info("Registered texture: $id")
         id
     } catch (e: Exception) {
         logger.error("registerIconTexture failed for $iconUrl", e)

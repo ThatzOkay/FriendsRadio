@@ -30,13 +30,18 @@ object RadioAudioManager {
         val thread: Thread
     )
 
+    data class ActiveStreamPlayer(
+        val stream: ActiveStream,
+        var tick: Int
+    )
+
     data class RadioInfo(
         val pos: BlockPos,
         var tickCounter: Int
     )
 
     val activeStreams = mutableMapOf<BlockPos, ActiveStream>()
-    private var activeStreamPlayer: ActiveStream? = null
+    var activeStreamPlayer: ActiveStreamPlayer? = null
 
     val knownRadios = mutableSetOf<RadioInfo>()
 
@@ -54,6 +59,9 @@ object RadioAudioManager {
 
         val player = RadioPlayer(url)
         player.setVolume(volume)  // set before starting so first audio is correct volume
+
+        checkCurrentSong(pos)
+
         val thread = Thread(player, "radio-stream-$pos").also {
             it.isDaemon = true  // don't block JVM shutdown
             it.start()
@@ -66,8 +74,8 @@ object RadioAudioManager {
     }
 
     fun playPlayer(url: String, volume: Float) {
-        if (activeStreamPlayer != null && activeStreamPlayer!!.url == url) {
-            activeStreamPlayer!!.player.setVolume(volume)
+        if (activeStreamPlayer != null && activeStreamPlayer!!.stream.url == url) {
+            activeStreamPlayer!!.stream.player.setVolume(volume)
             return
         }
 
@@ -75,16 +83,19 @@ object RadioAudioManager {
 
         val player = RadioPlayer(url)
         player.setVolume(volume)
+
+        checkCurrentSong(null)
+
         val thread = Thread(player, "radio-stream-$url-${MinecraftClient.getInstance().player?.uuid}").also {
             it.isDaemon = true
             it.start()
         }
-        activeStreamPlayer = ActiveStream(url, "", "", player, thread)
+        activeStreamPlayer = ActiveStreamPlayer(ActiveStream(url, "", "", player, thread), 0)
     }
 
     fun stopPlayer() {
         activeStreamPlayer ?: return
-        activeStreamPlayer!!.player.stop()
+        activeStreamPlayer!!.stream.player.stop()
         activeStreamPlayer = null
     }
 
@@ -123,6 +134,15 @@ object RadioAudioManager {
             if (stationUrl.isNullOrEmpty()) {
                 stopPlayer()
                 return
+            }
+
+            activeStreamPlayer?.tick++
+
+            activeStreamPlayer?.tick?.let {
+                if (it >= 200) {
+                    activeStreamPlayer?.tick = 0
+                    checkCurrentSong(null)
+                }
             }
 
             playPlayer(stationUrl, categoryVolume)
@@ -227,9 +247,8 @@ object RadioAudioManager {
         return title
     }
 
-    private fun checkCurrentSong(pos: BlockPos) {
-        if (MinecraftClient.getInstance().world?.getBlockEntity(pos) !is RadioBlockEntity) return
-        val activeStream = activeStreams[pos] ?: return
+    private fun checkCurrentSong(pos: BlockPos?) {
+        val activeStream = activeStreams[pos] ?: (activeStreamPlayer?.stream ?: return)
 
         CompletableFuture.runAsync {
             val fetched = activeStream.player.fetchCurrentSong()

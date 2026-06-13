@@ -8,6 +8,7 @@ version = providers.gradleProperty("mod_version").get()
 group = providers.gradleProperty("maven_group").get()
 repositories {
 	maven { url = uri("https://maven.terraformersmc.com/releases/") }
+	maven { url = uri("https://api.modrinth.com/maven") }
 	mavenCentral()
 }
 loom {
@@ -26,18 +27,21 @@ dependencies {
 	modImplementation("net.fabricmc.fabric-api:fabric-api:${providers.gradleProperty("fabric_api_version").get()}")
 	modImplementation("net.fabricmc:fabric-language-kotlin:${providers.gradleProperty("fabric_kotlin_version").get()}")
 	modImplementation("com.terraformersmc:modmenu:7.+")
+	modCompileOnly("maven.modrinth:create-fabric:0.5.1-j-build.1631+mc1.20.1") {
+		isTransitive = false
+	}
 
 	// Audio
-	include("com.googlecode.soundlibs:mp3spi:1.9.5.4")
-	include("com.googlecode.soundlibs:jlayer:1.0.1.4")
-	include("com.googlecode.soundlibs:tritonus-share:0.3.7.4")
+	include(implementation("com.googlecode.soundlibs:mp3spi:1.9.5.4")!!)
+	include(implementation("com.googlecode.soundlibs:jlayer:1.0.1.4")!!)
+	include(implementation("com.googlecode.soundlibs:tritonus-share:0.3.7.4")!!)
 
 //	// Image I/O
-//	implementation("com.twelvemonkeys.imageio:imageio-ico:3.0.2")
+//	include(implementation("com.twelvemonkeys.imageio:imageio-ico:3.0.2")!!)
 //
 //	// SVG
-	implementation("org.apache.xmlgraphics:batik-transcoder:1.17")
-	implementation("org.apache.xmlgraphics:batik-codec:1.17")
+	include(implementation("org.apache.xmlgraphics:batik-transcoder:1.17")!!)
+	include(implementation("org.apache.xmlgraphics:batik-codec:1.17")!!)
 }
 tasks.processResources {
 	val version = version

@@ -128,13 +128,12 @@ class RadioPlayer(val streamUrl: String) : Runnable {
             connection.connectTimeout = 5000
             connection.readTimeout = 5000
             connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+            connection.setRequestProperty("Icy-MetaData", "1")
             connection.setInstanceFollowRedirects(true)
             connection.connect();
 
             val metaInt = connection.getHeaderFieldInt("icy-metaint", 0)
-            if (metaInt == 0) {
-                return null
-            }
+            if (metaInt == 0) return null
 
             try {
                 val inputStream = connection.inputStream

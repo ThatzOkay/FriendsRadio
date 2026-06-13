@@ -20,6 +20,7 @@ import nl.thatzokay.friendsradio.block.RadioBlockEntity
 import nl.thatzokay.friendsradio.block.RadioBlockEvents
 import nl.thatzokay.friendsradio.client.audio.RadioAudioManager
 import nl.thatzokay.friendsradio.client.config.loadConfig
+import nl.thatzokay.friendsradio.client.create.CreateCompat
 import nl.thatzokay.friendsradio.client.ui.RadioScreen
 import nl.thatzokay.friendsradio.client.utils.downloadingIcons
 import nl.thatzokay.friendsradio.client.utils.findRadioStack
@@ -44,20 +45,28 @@ object FriendsRadioClient : ClientModInitializer {
 		RadioBlockEvents.onRemoved = { pos -> RadioAudioManager.onRadioUnloaded(pos) }
 
 		BlockRenderLayerMap.INSTANCE.putBlock(ModBlocks.RADIO_BLOCK, RenderLayer.getCutout())
-		UseBlockCallback.EVENT.register { playerEntity, world, hand, hitResult ->
+		UseBlockCallback.EVENT.register { playerEntity, world, _, hitResult ->
 			if (world.isClient && hitResult.type == HitResult.Type.BLOCK) {
 				val blockHitResult = hitResult as BlockHitResult
 				val state = world.getBlockState(blockHitResult.blockPos)
-				if (state.block is RadioBlock) {
-                    val blockEntity = world.getBlockEntity(blockHitResult.blockPos) as? RadioBlockEntity
-                        ?: return@register ActionResult.PASS
-                    MinecraftClient.getInstance().setScreen(RadioScreen(blockEntity, null))
+
+				val blockEntity = if (state.block is RadioBlock) {
+					world.getBlockEntity(blockHitResult.blockPos) as? RadioBlockEntity
+				} else null
+
+				// Not a radio in the world, check if player is riding a contraption
+				val finalEntity = blockEntity ?: run {
+					val vehicle = playerEntity.vehicle ?: return@run null
+					CreateCompat.findRadioInContraption(vehicle, blockHitResult.blockPos)
+				}
+
+				if (finalEntity != null) {
+					MinecraftClient.getInstance().setScreen(RadioScreen(finalEntity, null))
 					return@register ActionResult.SUCCESS
 				}
 			}
 			ActionResult.PASS
 		}
-
 		openScreenKey = KeyBindingHelper.registerKeyBinding(KeyBinding(
 			"key.friendsradio.open_radio",
 			InputUtil.Type.KEYSYM,
@@ -75,7 +84,7 @@ object FriendsRadioClient : ClientModInitializer {
 				.forEach { pos -> RadioAudioManager.onRadioLoaded(pos) }
 		}
 
-		ClientChunkEvents.CHUNK_UNLOAD.register { world, chunk ->
+		ClientChunkEvents.CHUNK_UNLOAD.register { _, chunk ->
 			chunk.blockEntities.keys
 				.forEach { pos -> RadioAudioManager.onRadioUnloaded(pos) }
 		}
@@ -85,7 +94,7 @@ object FriendsRadioClient : ClientModInitializer {
 			RadioAudioManager.tick(player)
 		}
 
-		ClientPlayConnectionEvents.DISCONNECT.register { handler, client ->
+		ClientPlayConnectionEvents.DISCONNECT.register { _, _ ->
 			RadioAudioManager.stopAll()
 		}
     }

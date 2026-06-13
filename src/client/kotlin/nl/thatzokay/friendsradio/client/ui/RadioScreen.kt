@@ -14,6 +14,7 @@ import net.minecraft.network.PacketByteBuf
 import net.minecraft.text.Text
 import nl.thatzokay.friendsradio.block.RadioBlockEntity
 import nl.thatzokay.friendsradio.client.audio.RadioAudioManager
+import nl.thatzokay.friendsradio.client.audio.RadioAudioManager.activeStreamPlayer
 import nl.thatzokay.friendsradio.client.config.customStations
 import nl.thatzokay.friendsradio.client.config.favorites
 import nl.thatzokay.friendsradio.client.ui.entries.BasicStationEntry
@@ -236,11 +237,15 @@ class RadioScreen(val blockEntity: RadioBlockEntity?, val itemStack: ItemStack?)
         context!!.drawCenteredTextWithShadow(client!!.textRenderer, title, width / 2 - client!!.textRenderer.getWidth(title) / 2, 10, 0xFFFFFF)
 
         val radioInfo = RadioAudioManager.knownRadios.find { it.pos == blockEntity?.pos }
+        val activeStream = if (blockEntity?.pos != null) {
+            RadioAudioManager.activeStreams[blockEntity.pos]
+        } else {
+            activeStreamPlayer?.stream
+        }
 
-        if (radioInfo != null) {
-            val activeStream = RadioAudioManager.activeStreams[radioInfo.pos]
+        if (activeStream != null) {
 
-            if (activeStream?.lastSongName?.isNotEmpty() == true) {
+            if (activeStream.lastSongName.isNotEmpty()) {
                 val songText = "♪ " + activeStream.lastSongName
                 val barWidth = 310
                 val barX = width / 2 - barWidth / 2

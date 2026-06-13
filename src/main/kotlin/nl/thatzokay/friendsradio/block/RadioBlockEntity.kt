@@ -35,9 +35,9 @@ class RadioBlockEntity(pos: BlockPos, state: BlockState) :
         }
     }
 
-    override fun writeNbt(nbt: NbtCompound) {  // ← remove the ?
+    override fun writeNbt(nbt: NbtCompound) {
         super.writeNbt(nbt)
-        nbt.putString("StationName",    station?.name    ?: "")  // ← null → ""
+        nbt.putString("StationName",    station?.name    ?: "")
         nbt.putString("StationUrl",     station?.url     ?: "")
         nbt.putString("StationFavIcon", station?.favicon ?: "")
         nbt.putBoolean("IsPlaying",     isPlaying)
