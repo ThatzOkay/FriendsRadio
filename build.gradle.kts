@@ -9,6 +9,8 @@ group = providers.gradleProperty("maven_group").get()
 repositories {
 	maven { url = uri("https://maven.terraformersmc.com/releases/") }
 	maven { url = uri("https://api.modrinth.com/maven") }
+	maven { url = uri("https://mvn.devos.one/snapshots/") }
+	maven { url = uri("https://mvn.devos.one/releases/") }
 	mavenCentral()
 }
 loom {
@@ -30,6 +32,8 @@ dependencies {
 	modCompileOnly("maven.modrinth:create-fabric:0.5.1-j-build.1631+mc1.20.1") {
 		isTransitive = false
 	}
+	modCompileOnly("io.github.fabricators_of_create.Porting-Lib:entity:2.3.0+1.20.1")
+	modApi(include("com.tterrag.registrate_fabric:Registrate:1.3.79-MC1.20.1")!!)
 
 	// Audio
 	include(implementation("com.googlecode.soundlibs:mp3spi:1.9.5.4")!!)

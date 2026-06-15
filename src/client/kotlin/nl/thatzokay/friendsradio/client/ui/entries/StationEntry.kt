@@ -16,6 +16,7 @@ import nl.thatzokay.friendsradio.client.ui.widgets.StationListWidget
 import nl.thatzokay.friendsradio.client.utils.isFavorite
 import nl.thatzokay.friendsradio.client.utils.logger
 import nl.thatzokay.friendsradio.client.utils.toggleFavorite
+import nl.thatzokay.friendsradio.network.RadioContraptionUpdatePayload
 import nl.thatzokay.friendsradio.network.RadioItemUpdatePayload
 import nl.thatzokay.friendsradio.network.RadioUpdatePayload
 import java.util.*
@@ -97,15 +98,28 @@ open class StationEntry<T : StationEntry<T>>(
                 be.isPlaying = true
 
                 val buf = PacketByteBuf(Unpooled.buffer())
-                RadioUpdatePayload.encode(
-                    buf,
-                    be.pos,
-                    station,
-                    true
-                )
-
-                ClientPlayNetworking.send(RadioUpdatePayload.ID, buf)
-                be.markDirtyAndSync()
+                val contraptionEntityId = be.contraptionEntityId
+                logger.info("block entity: $be")
+                if (contraptionEntityId != null) {
+                    logger.info("Contration interaction $contraptionEntityId")
+                    RadioContraptionUpdatePayload.encode(
+                        buf,
+                        contraptionEntityId,
+                        be.pos,
+                        station,
+                        true
+                    )
+                    ClientPlayNetworking.send(RadioContraptionUpdatePayload.ID, buf)
+                } else {
+                    RadioUpdatePayload.encode(
+                        buf,
+                        be.pos,
+                        station,
+                        true
+                    )
+                    ClientPlayNetworking.send(RadioUpdatePayload.ID, buf)
+                    be.markDirtyAndSync()
+                }
                 return true
             } else if (itemStack != null) {
                 val nbt = itemStack.orCreateNbt

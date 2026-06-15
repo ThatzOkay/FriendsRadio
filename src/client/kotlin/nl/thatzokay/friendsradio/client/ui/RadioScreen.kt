@@ -23,6 +23,7 @@ import nl.thatzokay.friendsradio.client.ui.widgets.StationListWidget
 import nl.thatzokay.friendsradio.client.utils.drawMarqueeText
 import nl.thatzokay.friendsradio.client.utils.fallbackIcon
 import nl.thatzokay.friendsradio.client.utils.getIcon
+import nl.thatzokay.friendsradio.network.RadioContraptionUpdatePayload
 import nl.thatzokay.friendsradio.network.RadioItemUpdatePayload
 import nl.thatzokay.friendsradio.network.RadioUpdatePayload
 import nl.thatzokay.friendsradio.records.FilterOption
@@ -138,16 +139,27 @@ class RadioScreen(val blockEntity: RadioBlockEntity?, val itemStack: ItemStack?)
                     blockEntity.isPlaying = false
 
                     val buf = PacketByteBuf(Unpooled.buffer())
+                    val contraptionEntityId = blockEntity.contraptionEntityId
 
-                    RadioUpdatePayload.encode(
-                        buf,
-                        blockEntity.pos,
-                        Station("", "", ""),
-                        false
-                    )
-
-                    ClientPlayNetworking.send(RadioUpdatePayload.ID, buf)
-                    blockEntity.markDirtyAndSync()
+                    if (contraptionEntityId != null) {
+                        RadioContraptionUpdatePayload.encode(
+                            buf,
+                            contraptionEntityId,
+                            blockEntity.pos,
+                            Station("", "", ""),
+                            false
+                        )
+                        ClientPlayNetworking.send(RadioContraptionUpdatePayload.ID, buf)
+                    } else {
+                        RadioUpdatePayload.encode(
+                            buf,
+                            blockEntity.pos,
+                            Station("", "", ""),
+                            false
+                        )
+                        ClientPlayNetworking.send(RadioUpdatePayload.ID, buf)
+                        blockEntity.markDirtyAndSync()
+                    }
                 } else if (itemStack != null) {
                     itemStack.nbt?.putString("StationName", "")
                     itemStack.nbt?.putString("StationUrl", "")

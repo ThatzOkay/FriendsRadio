@@ -13,12 +13,15 @@ import nl.thatzokay.friendsradio.ModBlockEntities
 import nl.thatzokay.friendsradio.records.Station
 
 class RadioBlockEntity(pos: BlockPos, state: BlockState) :
-    BlockEntity(ModBlockEntities.RADIO_BLOCK_ENTITY, pos, state) {
+    BlockEntity(ModBlockEntities.RADIO_BLOCK_ENTITY.get(), pos, state) {
 
     var station: Station? = null
     var volume: Float = 1.0f
     var isPlaying: Boolean = false
     var range: Float = 32.0f
+
+    /** Entity ID of the contraption this radio is part of, if any. Not persisted. */
+    var contraptionEntityId: Int? = null
 
     override fun readNbt(nbt: NbtCompound) {
         super.readNbt(nbt)

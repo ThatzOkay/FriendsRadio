@@ -1,5 +1,6 @@
 package nl.thatzokay.friendsradio.client.audio
 
+import com.simibubi.create.content.contraptions.AbstractContraptionEntity
 import net.minecraft.client.MinecraftClient
 import net.minecraft.client.world.ClientWorld
 import net.minecraft.entity.player.PlayerEntity
@@ -7,8 +8,11 @@ import net.minecraft.particle.ParticleTypes
 import net.minecraft.sound.SoundCategory
 import net.minecraft.util.Arm
 import net.minecraft.util.Hand
+import net.minecraft.util.TypeFilter
 import net.minecraft.util.math.BlockPos
+import net.minecraft.util.math.Box
 import net.minecraft.util.math.Vec3d
+import net.minecraft.util.math.Vec3i
 import net.minecraft.world.World
 import nl.thatzokay.friendsradio.block.RadioBlock
 import nl.thatzokay.friendsradio.block.RadioBlockEntity
@@ -40,13 +44,21 @@ object RadioAudioManager {
         var tickCounter: Int
     )
 
-    val activeStreams = mutableMapOf<BlockPos, ActiveStream>()
+    data class ContraptionRadioInfo(
+        val id: Int,
+        val pos: BlockPos,
+        var tickCounter: Int
+    )
+
+    val activeStreams = mutableMapOf<Any, ActiveStream>()
     var activeStreamPlayer: ActiveStreamPlayer? = null
 
     val knownRadios = mutableSetOf<RadioInfo>()
 
-    fun play(pos: BlockPos, url: String, volume: Float) {
-        val existing = activeStreams[pos]
+    val knownContraptionRadios = mutableSetOf<ContraptionRadioInfo>()
+
+    fun play(key: Any, url: String, volume: Float) {
+        val existing = activeStreams[key]
 
         // Already playing the same URL — just update volume
         if (existing != null && existing.url == url) {
@@ -55,22 +67,45 @@ object RadioAudioManager {
         }
 
         // Stop whatever was playing here before
-        stop(pos)
+        stop(key)
 
         val player = RadioPlayer(url)
         player.setVolume(volume)  // set before starting so first audio is correct volume
 
-        checkCurrentSong(pos)
+        checkCurrentSong(key)
 
-        val thread = Thread(player, "radio-stream-$pos").also {
+        val thread = Thread(player, "radio-stream-$key").also {
             it.isDaemon = true  // don't block JVM shutdown
             it.start()
         }
-        activeStreams[pos] = ActiveStream(url, "", "", player, thread)
+        activeStreams[key] = ActiveStream(url, "", "", player, thread)
     }
 
-    fun stop(pos: BlockPos) {
-        activeStreams.remove(pos)?.player?.stop()
+    fun playContraption(id: Int, pos: BlockPos, url: String, volume: Float) {
+        val existing = activeStreams[id]
+
+        if (existing != null && existing.url == url) {
+            existing.player.setVolume(volume)
+            return
+        }
+
+        stop(id)
+
+        val player = RadioPlayer(url)
+        player.setVolume(volume)
+
+        checkCurrentSong(id)
+
+        val thread = Thread(player, "radio-stream-$id").also {
+            it.isDaemon = true
+            it.start()
+        }
+
+        activeStreams[id] = ActiveStream(url, "", "", player, thread)
+    }
+
+    fun stop(key: Any) {
+        activeStreams.remove(key)?.player?.stop()
     }
 
     fun playPlayer(url: String, volume: Float) {
@@ -102,6 +137,20 @@ object RadioAudioManager {
     fun stopAll() {
         activeStreams.values.forEach { it.player.stop() }
         activeStreams.clear()
+    }
+
+    fun onContraptionRadioLoaded(id: Int, blockEntity: RadioBlockEntity, pos: BlockPos) {
+        val radio = ContraptionRadioInfo(id, pos, 0)
+        val existing = knownContraptionRadios.find { it.pos == pos }
+        if (existing == null) {
+            knownContraptionRadios.add(radio)
+        }
+    }
+
+    fun onContraptionRadioUnloaded(id: Int, pos: BlockPos) {
+        val radio = knownContraptionRadios.firstOrNull { it.pos == pos } ?: return
+        knownContraptionRadios.remove(radio)
+        stop(pos)
     }
 
     fun onRadioLoaded(pos: BlockPos) {
@@ -180,6 +229,39 @@ object RadioAudioManager {
 
                 play(radio.pos, url, finalVolume)
             }
+
+            knownContraptionRadios.forEach { info ->
+                val contraption = world.getEntitiesByType(
+                    TypeFilter.instanceOf(AbstractContraptionEntity::class.java),
+                    Box(player.pos, player.pos).expand(64.0)
+                ) { it.id == info.id }.firstOrNull() ?: run {
+                    onContraptionRadioUnloaded(info.id, info.pos)
+                    return@forEach
+                }
+
+                val be = contraption.contraption.presentBlockEntities[info.pos] as? RadioBlockEntity
+                if (be == null || !be.isPlaying || be.station?.url.isNullOrEmpty()) {
+                    //logger.info("${info.pos} is not playing ${info.id}")
+                    stop(info.pos)
+                    return@forEach
+                }
+
+                info.tickCounter++
+                if (info.tickCounter >= 200) {
+                    info.tickCounter = 0
+                    checkCurrentSong(info.pos)
+                }
+
+                val worldPos = BlockPos.ofFloored(contraption.pos)
+                //spawnNoteParticles(world, worldPos.toImmutable())
+
+                val url = be.station!!.url
+                val dist = player.squaredDistanceTo(Vec3d.of(worldPos))
+                val maxDist = be.range * be.range
+                val distanceVolume = if (dist >= maxDist) 0f else (1f - (dist / maxDist)).toFloat()
+                val finalVolume = distanceVolume * categoryVolume
+                playContraption(info.id, info.pos, url, finalVolume)
+            }
         }
     }
 
@@ -231,6 +313,16 @@ object RadioAudioManager {
         )
     }
 
+    private fun spawnNoteParticlesAt(world: World, pos: Vec3d) {
+        if (world.random.nextFloat() >= 0.2f) return
+
+        world.addParticle(
+            ParticleTypes.NOTE,
+            pos.x, pos.y, pos.z,
+            world.random.nextDouble(), 0.0, 0.0
+        )
+    }
+
     private fun formatSongTitle(title: String?): String {
         if (title.isNullOrEmpty()) return title!!
         val up = title.chars().filter(IntPredicate { codePoint: Int -> Character.isUpperCase(codePoint) }).count()
@@ -247,8 +339,8 @@ object RadioAudioManager {
         return title
     }
 
-    private fun checkCurrentSong(pos: BlockPos?) {
-        val activeStream = activeStreams[pos] ?: (activeStreamPlayer?.stream ?: return)
+    private fun checkCurrentSong(key: Any?) {
+        val activeStream = activeStreams[key] ?: (activeStreamPlayer?.stream ?: return)
 
         CompletableFuture.runAsync {
             val fetched = activeStream.player.fetchCurrentSong()

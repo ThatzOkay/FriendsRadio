@@ -58,7 +58,7 @@ fun isFavorite(url: String?): Boolean {
 fun findPlayingRadioStack(player: PlayerEntity): Pair<ItemStack, Hand>? {
     for (hand in Hand.entries) {
         val stack = player.getStackInHand(hand)
-        if (stack.isOf(ModBlocks.RADIO_ITEM) && stack.nbt?.getBoolean("IsPlaying") == true) {
+        if (stack.isOf(ModBlocks.RADIO_ITEM.get()) && stack.nbt?.getBoolean("IsPlaying") == true) {
             return stack to hand
         }
     }
@@ -68,7 +68,7 @@ fun findPlayingRadioStack(player: PlayerEntity): Pair<ItemStack, Hand>? {
 fun findRadioStack(player: PlayerEntity): Pair<ItemStack, Hand>? {
     for (hand in Hand.entries) {
         val stack = player.getStackInHand(hand)
-        if (stack.isOf(ModBlocks.RADIO_ITEM)) {
+        if (stack.isOf(ModBlocks.RADIO_ITEM.get())) {
             return stack to hand
         }
     }
